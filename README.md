@@ -30,7 +30,7 @@ Possible use cases:
 * Correct timestamps if your camera's clocks are late by several minutes
 * Correct timestamps to the local time zone if you forgot to adjust your camera clocks in a trip
 * Correct timestamps if you had your camera's clocks cleared to factory defaults (usually this means complete difference with current time)
-* Set last-modified property of a file to EXIF timestamp
+* Set last-modified property of a file to EXIF timestamp for sorting by date in Explorer
 * Set EXIF date/time to EXIF original/digitized
 
 
