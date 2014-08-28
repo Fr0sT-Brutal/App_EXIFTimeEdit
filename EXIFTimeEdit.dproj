@@ -56,8 +56,6 @@
 			<VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=;Website=http://delphihaven.wordpress.com/</VerInfo_Keys>
 			<VerInfo_Locale>1033</VerInfo_Locale>
 			<DCC_Define>VCL;$(DCC_Define)</DCC_Define>
-			<DCC_ExeOutput>.\Bin\$(Platform)-$(Config)</DCC_ExeOutput>
-			<DCC_DcuOutput>.\DCUs\$(Platform)-$(Config)</DCC_DcuOutput>
 			<DCC_DependencyCheckOutputName>EXIFTimeEdit2009.exe</DCC_DependencyCheckOutputName>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Base_Win64)'!=''">
@@ -69,8 +67,6 @@
 			<VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Cfg_1)'!=''">
-			<DCC_DcuOutput>.\DCUs\$(Platform)-$(Config)</DCC_DcuOutput>
-			<DCC_ExeOutput>.\</DCC_ExeOutput>
 			<DCC_DependencyCheckOutputName>..\Bin\Win32\Release\EXIFTimeEdit2009.exe</DCC_DependencyCheckOutputName>
 			<Version>7.0</Version>
 			<DCC_DebugInformation>False</DCC_DebugInformation>
@@ -84,8 +80,6 @@
 			<VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Cfg_2)'!=''">
-			<DCC_DcuOutput>.\DCUs\$(Platform)\$(Config)</DCC_DcuOutput>
-			<DCC_ExeOutput>.\Bin\$(Platform)\$(Config)</DCC_ExeOutput>
 			<DCC_DependencyCheckOutputName>..\Bin\Win32\Debug\EXIFTimeEdit2009.exe</DCC_DependencyCheckOutputName>
 			<Version>7.0</Version>
 			<DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
@@ -93,9 +87,7 @@
 			<DCC_HppOutput>..\..\DCUs\Win32\Debug</DCC_HppOutput>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
-			<DCC_ExeOutput>.\Bin\$(Platform)-$(Config)</DCC_ExeOutput>
 			<VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
-			<DCC_DcuOutput>.\DCUs\$(Platform)-$(Config)</DCC_DcuOutput>
 		</PropertyGroup>
 		<ProjectExtensions>
 			<Borland.Personality>Delphi.Personality.12</Borland.Personality>
@@ -133,7 +125,6 @@
 					</VersionInfoKeys>
 					<Excluded_Packages>
 						<Excluded_Packages Name="$(BDSBIN)\dclmid160.bpl">Embarcadero MyBase DataAccess Components</Excluded_Packages>
-						<Excluded_Packages Name="$(BDS)\UserDir\Bpl\GitIDE150.bpl">(untitled)</Excluded_Packages>
 						<Excluded_Packages Name="$(BDSBIN)\svnide160.bpl">Embarcadero Subversion Integration</Excluded_Packages>
 						<Excluded_Packages Name="$(BDSBIN)\applet160.bpl">Embarcadero Control Panel Applet Package</Excluded_Packages>
 						<Excluded_Packages Name="$(BDSBIN)\dcl31w160.bpl">Delphi 1.0 Compatibility Components</Excluded_Packages>

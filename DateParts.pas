@@ -24,6 +24,7 @@ implementation
 }
 function ChangeDate(ChangeAction: TDateChangeAction; DatePart: TDatePart; Number: Integer; SrcDate: TDateTime): TDateTime;
 begin
+  Result := SrcDate;
   case ChangeAction of
     dcaShift:
       case DatePart of

@@ -77,15 +77,22 @@ type
     sep1: TToolButton;
     btnProcess: TToolButton;
     GroupBox1: TGroupBox;
-    rgFileDateTime: TRadioGroup;
-    rgEXIFDateTime: TRadioGroup;
-    GroupBox2: TGroupBox;
+    btnDetermineShift: TToolButton;
+    StaticText1: TStaticText;
+    GroupBox3: TGroupBox;
+    Label1: TLabel;
+    cbFileDateTime: TComboBox;
+    cbEXIFDateTime: TComboBox;
+    Label2: TLabel;
+    Label3: TLabel;
+    cbEXIFOrigDigit: TComboBox;
     cbDatePart: TComboBox;
     cbAction: TComboBox;
     eNumber: TEdit;
     updNumber: TUpDown;
-    btnDetermineShift: TToolButton;
-    chbLeave: TCheckBox;
+    GroupBox2: TGroupBox;
+    rgErrors: TRadioGroup;
+    rgAbsentEXIF: TRadioGroup;
     procedure FormCreate(Sender: TObject);
     procedure actRemoveUpdate(Sender: TObject);
     procedure actRemoveExecute(Sender: TObject);
@@ -97,9 +104,9 @@ type
     procedure lvFilesKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure btnDetermineShiftClick(Sender: TObject);
-    procedure chbLeaveClick(Sender: TObject);
+    procedure cbEXIFOrigDigitChange(Sender: TObject);
   private
-    procedure OpenFile(FilePath: string; var ForceReadOnly: TModalResult; var ForceReadOnlyOptions: TMsgDlgButtons);
+    procedure OpenFile(FilePath: string);
     procedure OpenFiles(Files: TStrings);
     procedure ProcessFiles;
     procedure UpdListItem(DataPatcher: TExifDataPatcher; Item: TListItem);
@@ -114,22 +121,32 @@ implementation
 {$R *.dfm}
 
 resourcestring
-  SMsgReadOnlyFile = '%s is marked read only. Attempt to open it for read/write access anyhow?';
+  SMsgReadOnlyFile = 'Cannot get write access to read-only file "%s":'#13#10'%s.'#13#10'Skipping.';
   SMsgShitHappened = 'Shit happened';
   SMsgShiftOptionsNotSet = 'Some of shift options hasn''t been set';
-
+  SMsgNothingToDo = 'Nothing to do';
+  SMsgTimestampsMissing = 'Both Original and Digitized timestamps are empty.';
+  SMsgErrorProcessing = 'Error modifying file "%s":'#13#10'%s.'#13#10'Skip?';
+  SMsgEXIFAdditionNeeded = 'Warning for file "%s":'#13#10+
+    'one or more EXIF fields need to be added. This will require file rewriting instead of usual patching.'#13#10+
+    'Proceed with rewriting?'#13#10+
+    '   YES - add fields with rewriting.'#13#10+
+    '   NO - skip additional fields.';
   SFormLabel = 'EXIF Date/Time Editor';
   SLblProgressOpen = 'Opening: (%d / %d)';
   SLblProgressProcessing = 'Processing: (%d / %d)';
-  SHint_rgFileDateTime = 'File date/time is a file property, not metadata. Useful for sorting with file managers';
-  SHint_rgEXIFDateTime = 'EXIF date/time field holds a timestamp of the last image modification';
+  SHint_cbFileDateTime = 'File date/time is a file property (not metadata). Useful for sorting with file managers';
+  SHint_cbEXIFDateTime = 'EXIF date/time field holds a timestamp of the last image modification';
   SHint_btnDetermineShift = 'Determine shift value.'#13#10+
                             'Use this tool if you have a file with wrong timestamps but'#13#10+
                             'you know what they should be';
-  SHint_chbLeave = 'If checked, EXIF fields DateTimeOriginal and DateTimeDigitized won''t be modified.';
+  SHint_cbEXIFOrigDigit = 'Select whether modify EXIF fields DateTimeOriginal and DateTimeDigitized or not';
+  SHint_cbDatePart = 'Select date part to shift (Year/Month/Day/...)';
+  SHint_cbAction = 'Select action to perform (add/substract/set)';
 
 type
   TTimestampAction = (ftKeep, ftMatchExif, ftSetToNow);
+  TProcessAction = (paAsk, paSkip, paDo);
 
 const
   RegPath = 'Software\CCR';
@@ -172,22 +189,33 @@ begin
   // visual init
   Caption := SFormLabel;
   Application.Title := SFormLabel;
-  rgFileDateTime.Hint := SHint_rgFileDateTime;
-  rgEXIFDateTime.Hint := SHint_rgEXIFDateTime;
+  cbFileDateTime.Hint := SHint_cbFileDateTime;
+  cbEXIFDateTime.Hint := SHint_cbEXIFDateTime;
+  cbEXIFOrigDigit.Hint := SHint_cbEXIFOrigDigit;
   btnDetermineShift.Hint := SHint_btnDetermineShift;
-  chbLeave.Hint := SHint_chbLeave;
+  cbDatePart.Hint := SHint_cbDatePart;
+  cbAction.Hint := SHint_cbAction;
 
   with TRegIniFile.Create(RegPath) do
   try
     IntVal := ReadInteger(Application.Title, 'FileTimeAction', 0);
     if TTimestampAction(IntVal) in [Low(TTimestampAction)..High(TTimestampAction)] then
-      rgFileDateTime.ItemIndex := IntVal;
+      cbFileDateTime.ItemIndex := IntVal;
     IntVal := ReadInteger(Application.Title, 'EXIFTimeAction', 0);
     if TTimestampAction(IntVal) in [Low(TTimestampAction)..High(TTimestampAction)] then
-      rgEXIFDateTime.ItemIndex := IntVal;
-    BoolVal := ReadBool(Application.Title, 'LeaveUnchanged', False);
-    chbLeave.Checked := BoolVal;
-    chbLeaveClick(chbLeave); // imitate click
+      cbEXIFDateTime.ItemIndex := IntVal;
+    BoolVal := ReadBool(Application.Title, 'EXIFOrigDigitModify', False);
+    if BoolVal
+      then cbEXIFOrigDigit.ItemIndex := 1
+      else cbEXIFOrigDigit.ItemIndex := 0;
+    cbEXIFOrigDigit.OnChange(cbEXIFOrigDigit); // imitate change
+
+    IntVal := ReadInteger(Application.Title, 'ErrorAction', 0);
+    if TTimestampAction(IntVal) in [Low(TTimestampAction)..High(TTimestampAction)] then
+      rgErrors.ItemIndex := IntVal;
+    IntVal := ReadInteger(Application.Title, 'AbsentEXIFAction', 0);
+    if TTimestampAction(IntVal) in [Low(TTimestampAction)..High(TTimestampAction)] then
+      rgAbsentEXIF.ItemIndex := IntVal;
   finally
     Free;
   end;
@@ -221,43 +249,30 @@ begin
   RegIniFile := nil;
   try
     RegIniFile := TRegIniFile.Create(RegPath);
-    RegIniFile.WriteInteger(Application.Title, 'FileTimeAction', rgFileDateTime.ItemIndex);
-    RegIniFile.WriteInteger(Application.Title, 'EXIFTimeAction', rgEXIFDateTime.ItemIndex);
-    RegIniFile.WriteBool(Application.Title, 'LeaveUnchanged', chbLeave.Checked);
+    RegIniFile.WriteInteger(Application.Title, 'FileTimeAction', cbFileDateTime.ItemIndex);
+    RegIniFile.WriteInteger(Application.Title, 'EXIFTimeAction', cbEXIFDateTime.ItemIndex);
+    RegIniFile.WriteBool(Application.Title, 'EXIFOrigDigitModify', cbEXIFOrigDigit.ItemIndex = 1);
+    RegIniFile.WriteInteger(Application.Title, 'ErrorAction', rgErrors.ItemIndex);
+    RegIniFile.WriteInteger(Application.Title, 'AbsentEXIFAction', rgAbsentEXIF.ItemIndex);
   finally
     RegIniFile.Free;
   end;
 end;
 
 // Open one file and add it to the listview
-procedure TfrmExifTimeEdit.OpenFile(FilePath: string; var ForceReadOnly: TModalResult; var ForceReadOnlyOptions: TMsgDlgButtons);
+procedure TfrmExifTimeEdit.OpenFile(FilePath: string);
 var
   DataPatcher: TExifDataPatcher;
   Item: TListItem;
-  ReadOnly: Boolean;
 begin
-  ReadOnly := FileIsReadOnly(FilePath);
-  if ReadOnly then //we can't open a read-only file with read/write access obviously
-  begin
-    // ask a user if he wants us to modify RO files
-    if ForceReadOnly = mrNone then
-    begin
-      ForceReadOnly := MessageDlg(Format(SMsgReadOnlyFile, [ExtractFileName(FilePath)]),
-        mtConfirmation, ForceReadOnlyOptions, 0, mbNo);
-      if ForceReadOnly = mrNone then ForceReadOnly := mrNo;
-    end;
-    if IsNegativeResult(ForceReadOnly) then
-      Exit;
+  if FileIsReadOnly(FilePath) then // we can't open a read-only file with read/write access obviously
     // try to make file RW
     if not FileSetReadOnly(FilePath, False) then
     begin
-      MessageDlg(SysErrorMessage(GetLastError), mtError, [mbOK], 0);
+      MessageDlg(Format(SMsgReadOnlyFile, [FilePath, SysErrorMessage(GetLastError)]), mtError, [mbOK], 0);
       Exit;
     end;
-    // return RO state for now (we'll change it later in process)
-    if ReadOnly then
-      FileSetReadOnly(FilePath, True);
-  end;
+
   try
     DataPatcher := TExifDataPatcher.Create(FilePath);
   except
@@ -272,7 +287,7 @@ begin
   Item := lvFiles.Items.Add;
   Item.Data := DataPatcher;
   Item.Caption := ExtractFileName(FilePath);
-  Item.SubItems.AddObject('', TObject(ReadOnly));
+  Item.SubItems.Add('');
   Item.SubItems.Add('');
   Item.SubItems.Add('');
   Item.SubItems.Add('');
@@ -284,21 +299,15 @@ end;
 procedure TfrmExifTimeEdit.OpenFiles(Files: TStrings);
 var
   S: string;
-  ForceReadOnly: TModalResult;
-  ForceReadOnlyOptions: TMsgDlgButtons;
   Counter: Integer;
 begin
   if Files.Count = 0 then Exit;
-  ForceReadOnly := mrNone;
-  ForceReadOnlyOptions := [mbYes, mbNo];
-  if Files.Count > 1 then
-    ForceReadOnlyOptions := ForceReadOnlyOptions + [mbNoToAll, mbYesToAll];
   Counter := 0;
   EnableControls(False);  // ! disable the panel to avoid unneeded user input while doing the job
   try
     for S in Files do
     begin
-      OpenFile(S, ForceReadOnly, ForceReadOnlyOptions);
+      OpenFile(S);
       Inc(Counter);
       // visual refresh each 10 iterations
       if Counter mod 10 <> 0 then Continue;
@@ -314,37 +323,40 @@ end;
 // Do main job
 procedure TfrmExifTimeEdit.ProcessFiles;
 var
-  FileDtAction, ExifDtAction: TTimestampAction;
   ChangeAction: TDateChangeAction;
   DatePart: TDatePart;
   Number: Integer;
-  ValidTimestamp: TDateTimeTagValue;
 
 // If a given DateTime is valid, change it according to settings.
 // Uses external variables:
-//   ChangeAction, DatePart, Number (read)
-//   DTModified (write)
+//   [R] ChangeAction, DatePart, Number
 function DoChangeTime(const DateTime: TDateTimeTagValue): TDateTimeTagValue;
 begin
-  if DateTime.MissingOrInvalid then Exit(Datetime); // no change
-  Result := ChangeDate(ChangeAction, DatePart, Number, DateTime);
+  if DateTime.MissingOrInvalid then Exit(Datetime);
+  Result := ChangeDate(ChangeAction, DatePart, Number, DateTime.Value);
 end;
 
 var
-  DataPatcher: TExifDataPatcher;
-  I: Integer;
-  ReadOnly, LeaveUnchanged: Boolean;
+  DataPatcher: TCustomExifData;
+  I, ErrReply: Integer;
+  EXIFOrigDigitLeave, EXIFAddNeeded, DoEXIFAdd: Boolean;
+  ValidTimestamp: TDateTimeTagValue;
+  FileDtAction, ExifDtAction: TTimestampAction;
+  ErrorsAction, EXIFAction: TProcessAction;
+  FileName: string;
+  FileDateTime: TDateTime;
+  DateTime: TDateTimeInfoRec;
 begin
   // Get and check current options
-  FileDtAction := TTimestampAction(rgFileDateTime.ItemIndex);
+  FileDtAction := TTimestampAction(cbFileDateTime.ItemIndex);
   if not (FileDtAction in [Low(TTimestampAction)..High(TTimestampAction)]) then
     raise Exception.Create(SMsgShitHappened);
-  ExifDtAction := TTimestampAction(rgEXIFDateTime.ItemIndex);
+  ExifDtAction := TTimestampAction(cbEXIFDateTime.ItemIndex);
   if not (ExifDtAction in [Low(TTimestampAction)..High(TTimestampAction)]) then
     raise Exception.Create(SMsgShitHappened);
   // Shift options
-  LeaveUnchanged := chbLeave.Checked;
-  if not LeaveUnchanged then
+  EXIFOrigDigitLeave := cbEXIFOrigDigit.ItemIndex = 0;
+  if not EXIFOrigDigitLeave then
   begin
     Number := updNumber.Position;
     case cbAction.ItemIndex of // '+', '-', '='
@@ -358,62 +370,164 @@ begin
     if (DatePart = TDatePart(-1)) or (ChangeAction = TDateChangeAction(-1)) then
       raise Exception.Create(SMsgShiftOptionsNotSet);
   end;
+  // Process actions
+  ErrorsAction := TProcessAction(rgErrors.ItemIndex);
+  if not (ErrorsAction in [Low(TProcessAction)..High(TProcessAction)]) then
+    raise Exception.Create(SMsgShitHappened);
+  EXIFAction := TProcessAction(rgErrors.ItemIndex);
+  if not (EXIFAction in [Low(TProcessAction)..High(TProcessAction)]) then
+    raise Exception.Create(SMsgShitHappened);
+
+  // Check if there's something to change
+  if (FileDtAction = ftKeep) and (ExifDtAction = ftKeep) and
+     ( EXIFOrigDigitLeave or ( (ChangeAction = dcaShift) and (Number = 0) ) ) then
+    raise Exception.Create(SMsgNothingToDo);
 
   // Action!
   EnableControls(False);  // ! disable the panel to avoid unneeded user input while doing the job
+
+  for I := 0 to lvFiles.Items.Count - 1 do
   try
-    for I := 0 to lvFiles.Items.Count - 1 do
+    DataPatcher := lvFiles.Items[I].Data;
+    FileName := TExifDataPatcher(DataPatcher).FileName;
+    DoEXIFAdd := False;
+
+    // Check if addition of some EXIF fields is needed
+    EXIFAddNeeded :=
+      (not EXIFOrigDigitLeave   and DataPatcher.DateTimeOriginal.MissingOrInvalid) or
+      (not EXIFOrigDigitLeave   and DataPatcher.DateTimeDigitized.MissingOrInvalid) or
+      ((ExifDtAction <> ftKeep) and DataPatcher.DateTime.MissingOrInvalid);
+    if EXIFAddNeeded then
     begin
-      DataPatcher := lvFiles.Items[I].Data;
-      ReadOnly := Boolean(lvFiles.Items[I].SubItems.Objects[0]);
-
-      // change EXIF dates
-
-      // change DateTimeOriginal and DateTimeDigitized
-      if not LeaveUnchanged then
-      begin
-        DataPatcher.DateTimeOriginal  := DoChangeTime(DataPatcher.DateTimeOriginal);
-        DataPatcher.DateTimeDigitized := DoChangeTime(DataPatcher.DateTimeDigitized);
+      if EXIFAction = paAsk then
+        case MessageDlg(Format(SMsgEXIFAdditionNeeded, [TExifDataPatcher(DataPatcher).FileName]),
+                        mtWarning,
+                        [mbYes, mbYesToAll, mbNo, mbNoToAll],
+                        0) of
+          mrYes      : DoEXIFAdd := True;
+          mrYesToAll : EXIFAction := paDo;
+          mrNo       : DoEXIFAdd := False;
+          mrNoToAll  : EXIFAction := paSkip;
+        end;
+      case EXIFAction of
+        paAsk  : ; //
+        paSkip : DoEXIFAdd := False;
+        paDo   : DoEXIFAdd := True;
       end;
-      // choose valid timestamp (one or both could be absent, we must foresee it)
-      ValidTimestamp := DataPatcher.DateTimeOriginal;
-      if not ValidTimestamp.MissingOrInvalid then
-        ValidTimestamp := DataPatcher.DateTimeDigitized;
-      // change DateTime
-      case ExifDtAction of
-        ftKeep      : ; // skip
-        ftMatchExif : if not ValidTimestamp.MissingOrInvalid then DataPatcher.DateTime := ValidTimestamp;
-        ftSetToNow  : DataPatcher.DateTime := Now;
+    end; // if
+
+    // Will be adding absent EXIF fields - change patcher to TExifData
+    if DoEXIFAdd then
+    begin
+      FreeAndNil(DataPatcher);
+      DataPatcher := TExifData.Create;
+      try
+        TExifData(DataPatcher).LoadFromGraphic(FileName);
+      except
+        FreeAndNil(DataPatcher);
+        DataPatcher := TExifDataPatcher.Create(FileName);
+        lvFiles.Items[I].Data := DataPatcher;
+        raise;
       end;
-      DataPatcher.PreserveFileDate := (FileDtAction = ftKeep);
+    end;
 
-      // save changes
+    // change EXIF dates
 
-      // make RO files RW and save changes
-      if ReadOnly then
-        FileSetReadOnly(DataPatcher.FileName, False);
-      DataPatcher.UpdateFile;
-      if FileDtAction = ftMatchExif then
-      begin
+    // change DateTimeOriginal and DateTimeDigitized
+    if not EXIFOrigDigitLeave then
+    begin
+      // error if both timestamps are missing
+      if DataPatcher.DateTimeOriginal.MissingOrInvalid and
+         DataPatcher.DateTimeDigitized.MissingOrInvalid then
+        raise Exception.Create(SMsgTimestampsMissing);
+      // if only one of two timestamps is missing, assign value of other timestamp to it
+      // (EXIF addition mode only)
+      if DoEXIFAdd then
+        if DataPatcher.DateTimeOriginal.MissingOrInvalid then
+          DataPatcher.DateTimeOriginal := DataPatcher.DateTimeDigitized
+        else
+        if DataPatcher.DateTimeDigitized.MissingOrInvalid then
+          DataPatcher.DateTimeDigitized := DataPatcher.DateTimeOriginal;
+      // shift the timestamps
+      DataPatcher.DateTimeOriginal  := DoChangeTime(DataPatcher.DateTimeOriginal);
+      DataPatcher.DateTimeDigitized := DoChangeTime(DataPatcher.DateTimeDigitized);
+    end;
+
+    // choose valid timestamp (one or both could be absent, we must foresee it)
+    ValidTimestamp := DataPatcher.DateTimeOriginal;
+    if ValidTimestamp.MissingOrInvalid then
+      ValidTimestamp := DataPatcher.DateTimeDigitized;
+    // change DateTime
+    case ExifDtAction of
+      ftKeep      : ; // skip
+      ftMatchExif :
+        if (DoEXIFAdd or not DataPatcher.DateTime.MissingOrInvalid) and
+           not ValidTimestamp.MissingOrInvalid then
+          DataPatcher.DateTime := ValidTimestamp;
+      ftSetToNow  :
+        if (DoEXIFAdd or not DataPatcher.DateTime.MissingOrInvalid) then
+          DataPatcher.DateTime := Now;
+    end;
+
+    // save file timestamp
+    FileGetDateTimeInfo(FileName, DateTime);
+
+    // save changes and set file timestamp
+
+    if DataPatcher is TExifDataPatcher then
+      TExifDataPatcher(DataPatcher).UpdateFile
+    else
+    if DataPatcher is TExifData then
+    begin
+      TExifData(DataPatcher).SaveToGraphic(FileName);
+      // switch back to patcher
+      FreeAndNil(DataPatcher);
+      DataPatcher := TExifDataPatcher.Create(FileName);
+    end;
+
+    case FileDtAction of
+      ftKeep      :
+        TExifDataPatcher(DataPatcher).FileDateTime := DateTime.TimeStamp;
+      ftMatchExif :
         if not ValidTimestamp.MissingOrInvalid then
-          DataPatcher.FileDateTime := ValidTimestamp.Value; // ! changes immediately
+          TExifDataPatcher(DataPatcher).FileDateTime := ValidTimestamp.Value;
+      ftSetToNow  :
+        TExifDataPatcher(DataPatcher).FileDateTime := Now;
+    end;
+
+    // dislay changes
+    lvFiles.Items[I].Data := DataPatcher;
+    UpdListItem(TExifDataPatcher(DataPatcher), lvFiles.Items[I]);
+
+    // visual refresh each 10 iterations
+    if I mod 10 <> 0 then Continue;
+    Caption := Format(SLblProgressProcessing, [I, lvFiles.Items.Count]);
+    Application.ProcessMessages;
+  except on E: Exception do
+    begin
+      if ErrorsAction = paAsk then
+      begin
+        ErrReply :=
+          MessageDlg(Format(SMsgErrorProcessing, [FileName, E.Message]),
+                     mtWarning,
+                     [mbYes, mbYesToAll, mbAbort],
+                     0);
+        case ErrReply of
+          mrYes      : ; // Continue
+          mrYesToAll : ErrorsAction := paSkip;
+          mrAbort    : ErrorsAction := paDo;
+        end;
+      end; // if
+      case ErrorsAction of
+        paAsk  : ; // Continue
+        paSkip : ; // Continue
+        paDo   : Break;
       end;
-      // make files RO again
-      if ReadOnly then
-        FileSetReadOnly(DataPatcher.FileName, True);
+    end;
+  end; // try & for
 
-      // dislay changes
-      UpdListItem(DataPatcher, lvFiles.Items[I]);
-
-      // visual refresh each 10 iterations
-      if I mod 10 <> 0 then Continue;
-      Caption := Format(SLblProgressProcessing, [I, lvFiles.Items.Count]);
-      Application.ProcessMessages;
-    end; // for
-  finally
-    Caption := SFormLabel;
-    EnableControls(True);
-  end;
+  Caption := SFormLabel;
+  EnableControls(True);
 end;
 
 procedure TfrmExifTimeEdit.EnableControls(Enable: Boolean);
@@ -498,17 +612,18 @@ begin
   end;
 end;
 
-procedure TfrmExifTimeEdit.chbLeaveClick(Sender: TObject);
+procedure TfrmExifTimeEdit.cbEXIFOrigDigitChange(Sender: TObject);
 begin
-  cbAction.Enabled   := not TCheckBox(Sender).Checked;
-  cbDatePart.Enabled := not TCheckBox(Sender).Checked;
-  updNumber.Enabled  := not TCheckBox(Sender).Checked;
-  eNumber.Enabled    := not TCheckBox(Sender).Checked;
+  cbAction.Enabled   := TComboBox(Sender).ItemIndex = 1;
+  cbDatePart.Enabled := TComboBox(Sender).ItemIndex = 1;
+  updNumber.Enabled  := TComboBox(Sender).ItemIndex = 1;
+  eNumber.Enabled    := TComboBox(Sender).ItemIndex = 1;
 end;
 
 procedure TfrmExifTimeEdit.actProcessUpdate(Sender: TObject);
 begin
   actProcess.Enabled := (lvFiles.Items.Count > 0);
+  StaticText1.Visible := not (lvFiles.Items.Count > 0);
 end;
 
 procedure TfrmExifTimeEdit.actProcessExecute(Sender: TObject);

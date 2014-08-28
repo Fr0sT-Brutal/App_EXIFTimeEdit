@@ -1,10 +1,10 @@
 object frmDetermineShift: TfrmDetermineShift
   Left = 246
   Top = 92
+  Width = 438
+  Height = 340
   BorderStyle = bsDialog
   Caption = 'Determine timestamp shift'
-  ClientHeight = 307
-  ClientWidth = 432
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText

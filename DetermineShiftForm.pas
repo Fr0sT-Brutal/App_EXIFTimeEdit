@@ -74,7 +74,6 @@ const
 
 procedure TPanel.WMDropFiles(var Message: TWMDropFiles);
 var
-  I: Integer;
   Buffer: array[0..MAX_PATH] of Char;
   FileName: string;
   DataPatcher : TExifDataPatcher;
