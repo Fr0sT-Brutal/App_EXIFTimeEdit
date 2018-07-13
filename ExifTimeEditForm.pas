@@ -121,6 +121,7 @@ implementation
 {$R *.dfm}
 
 resourcestring
+  SMsgJobDone = 'Files processed';
   SMsgReadOnlyFile = 'Cannot get write access to read-only file "%s":'#13#10'%s.'#13#10'Skipping.';
   SMsgShitHappened = 'Shit happened';
   SMsgShiftOptionsNotSet = 'Some of shift options hasn''t been set';
@@ -346,6 +347,7 @@ var
   FileName: string;
   FileDateTime: TDateTime;
   DateTime: TDateTimeInfoRec;
+  LastPM: TDateTime;
 begin
   // Get and check current options
   FileDtAction := TTimestampAction(cbFileDateTime.ItemIndex);
@@ -385,6 +387,7 @@ begin
 
   // Action!
   EnableControls(False);  // ! disable the panel to avoid unneeded user input while doing the job
+  LastPM := Now;
 
   for I := 0 to lvFiles.Items.Count - 1 do
   try
@@ -499,10 +502,11 @@ begin
     lvFiles.Items[I].Data := DataPatcher;
     UpdListItem(TExifDataPatcher(DataPatcher), lvFiles.Items[I]);
 
-    // visual refresh each 10 iterations
-    if I mod 10 <> 0 then Continue;
+    // visual refresh each 1 second
+    if SecondsBetween(LastPM, Now) < 1 then Continue;
     Caption := Format(SLblProgressProcessing, [I, lvFiles.Items.Count]);
     Application.ProcessMessages;
+    LastPM := Now;
   except on E: Exception do
     begin
       if ErrorsAction = paAsk then
@@ -527,6 +531,7 @@ begin
   end; // try & for
 
   Caption := SFormLabel;
+  MessageDlg(SMsgJobDone, mtInformation, [mbOK], 0);
   EnableControls(True);
 end;
 
